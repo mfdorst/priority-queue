@@ -1,15 +1,25 @@
-pub struct PriorityQueue<T: PartialOrd> {
+pub struct PriorityQueue<T: PartialOrd, F: Fn(&T, &T) -> bool> {
     heap: Vec<T>,
+    cmp: Box<F>,
 }
 
-impl<T: PartialOrd> PriorityQueue<T> {
+impl<T: PartialOrd> PriorityQueue<T, fn(&T, &T) -> bool> {
     pub fn new(data: Vec<T>) -> Self {
-        let mut queue = Self { heap: data };
+        Self::with_ordering(data, |a, b| a < b)
+    }
+}
+
+impl<T: PartialOrd, F: Fn(&T, &T) -> bool> PriorityQueue<T, F> {
+    pub fn with_ordering(data: Vec<T>, ordering: F) -> Self {
+        let mut queue = Self {
+            heap: data,
+            cmp: Box::new(ordering),
+        };
         queue.heapify();
         queue
     }
 
-    pub fn take_min(&mut self) -> Option<T> {
+    pub fn take_front(&mut self) -> Option<T> {
         if self.heap.is_empty() {
             return None;
         }
@@ -25,11 +35,15 @@ impl<T: PartialOrd> PriorityQueue<T> {
         let mut i = self.heap.len() - 1;
         // This will overflow if i = 0, but we don't care because we will exit
         let mut parent = (i.wrapping_sub(1)) / 2;
-        while i != 0 && self.heap[i] < self.heap[parent] {
+        while i != 0 && self.cmp(&self.heap[i], &self.heap[parent]) {
             self.heap.swap(i, parent);
             i = parent;
             parent = (i - 1) / 2;
         }
+    }
+
+    fn cmp(&self, a: &T, b: &T) -> bool {
+        (self.cmp)(a, b)
     }
 
     fn heapify(&mut self) {
@@ -41,12 +55,11 @@ impl<T: PartialOrd> PriorityQueue<T> {
     fn sift_down(&mut self, mut i: usize) {
         let mut left = i * 2 + 1;
         let mut right = i * 2 + 2;
-        // While left or right node is larger than current (i) node
-        while left < self.heap.len() && self.heap[i] > self.heap[left]
-            || right < self.heap.len() && self.heap[i] > self.heap[right]
+        while left < self.heap.len() && self.cmp(&self.heap[left], &self.heap[i])
+            || right < self.heap.len() && self.cmp(&self.heap[right], &self.heap[i])
         {
             let smallest = if right < self.heap.len() {
-                if self.heap[left] < self.heap[right] {
+                if self.cmp(&self.heap[left], &self.heap[right]) {
                     left
                 } else {
                     right
@@ -66,25 +79,49 @@ impl<T: PartialOrd> PriorityQueue<T> {
 mod test {
     use crate::PriorityQueue;
     #[test]
-    fn new_sorts() {
+    fn new() {
         let mut queue = PriorityQueue::new(vec![3, 2, 6, 5, 1, 4]);
-        assert_eq!(queue.take_min(), Some(1));
-        assert_eq!(queue.take_min(), Some(2));
-        assert_eq!(queue.take_min(), Some(3));
-        assert_eq!(queue.take_min(), Some(4));
-        assert_eq!(queue.take_min(), Some(5));
-        assert_eq!(queue.take_min(), Some(6));
-        assert_eq!(queue.take_min(), None);
+        assert_eq!(queue.take_front(), Some(1));
+        assert_eq!(queue.take_front(), Some(2));
+        assert_eq!(queue.take_front(), Some(3));
+        assert_eq!(queue.take_front(), Some(4));
+        assert_eq!(queue.take_front(), Some(5));
+        assert_eq!(queue.take_front(), Some(6));
+        assert_eq!(queue.take_front(), None);
     }
 
     #[test]
-    fn insert_works() {
+    fn insert() {
         let mut queue = PriorityQueue::new(vec![1, 5, 9]);
         queue.insert(8);
-        assert_eq!(queue.take_min(), Some(1));
-        assert_eq!(queue.take_min(), Some(5));
-        assert_eq!(queue.take_min(), Some(8));
-        assert_eq!(queue.take_min(), Some(9));
-        assert_eq!(queue.take_min(), None);
+        assert_eq!(queue.take_front(), Some(1));
+        assert_eq!(queue.take_front(), Some(5));
+        assert_eq!(queue.take_front(), Some(8));
+        assert_eq!(queue.take_front(), Some(9));
+        assert_eq!(queue.take_front(), None);
+    }
+
+    #[test]
+    fn custom_comparator_ascending() {
+        let mut queue = PriorityQueue::with_ordering(vec![3, 2, 6, 5, 1, 4], |a, b| a < b);
+        assert_eq!(queue.take_front(), Some(1));
+        assert_eq!(queue.take_front(), Some(2));
+        assert_eq!(queue.take_front(), Some(3));
+        assert_eq!(queue.take_front(), Some(4));
+        assert_eq!(queue.take_front(), Some(5));
+        assert_eq!(queue.take_front(), Some(6));
+        assert_eq!(queue.take_front(), None);
+    }
+
+    #[test]
+    fn custom_comparator_descending() {
+        let mut queue = PriorityQueue::with_ordering(vec![3, 2, 6, 5, 1, 4], |a, b| a > b);
+        assert_eq!(queue.take_front(), Some(6));
+        assert_eq!(queue.take_front(), Some(5));
+        assert_eq!(queue.take_front(), Some(4));
+        assert_eq!(queue.take_front(), Some(3));
+        assert_eq!(queue.take_front(), Some(2));
+        assert_eq!(queue.take_front(), Some(1));
+        assert_eq!(queue.take_front(), None);
     }
 }
