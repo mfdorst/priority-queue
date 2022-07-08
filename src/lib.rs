@@ -1,4 +1,4 @@
-pub struct PriorityQueue<T: PartialOrd, F: Fn(&T, &T) -> bool> {
+pub struct PriorityQueue<T, F: Fn(&T, &T) -> bool> {
     heap: Vec<T>,
     cmp: Box<F>,
 }
@@ -9,7 +9,7 @@ impl<T: PartialOrd> PriorityQueue<T, fn(&T, &T) -> bool> {
     }
 }
 
-impl<T: PartialOrd, F: Fn(&T, &T) -> bool> PriorityQueue<T, F> {
+impl<T, F: Fn(&T, &T) -> bool> PriorityQueue<T, F> {
     pub fn with_ordering(data: Vec<T>, ordering: F) -> Self {
         let mut queue = Self {
             heap: data,
@@ -123,5 +123,39 @@ mod test {
         assert_eq!(queue.take_front(), Some(2));
         assert_eq!(queue.take_front(), Some(1));
         assert_eq!(queue.take_front(), None);
+    }
+
+    #[test]
+    fn non_partial_ord() {
+        #[derive(Debug)]
+        enum NonPartialOrd {
+            One,
+            Two,
+            Three,
+        }
+        use NonPartialOrd::*;
+
+        // Order by: a < b
+        let mut queue = PriorityQueue::with_ordering(vec![Two, One, Three], |a, b| match (a, b) {
+            (One, Two) | (One, Three) | (Two, Three) => true,
+            (_, _) => false,
+        });
+
+        match queue.take_front() {
+            Some(One) => { /* good! */ }
+            x @ _ => panic!("{x:?} != Some(One)"),
+        }
+        match queue.take_front() {
+            Some(Two) => { /* good! */ }
+            x @ _ => panic!("{x:?} != Some(Two)"),
+        }
+        match queue.take_front() {
+            Some(Three) => { /* good! */ }
+            x @ _ => panic!("{x:?} != Some(Three)"),
+        }
+        match queue.take_front() {
+            None => { /* good! */ }
+            x @ _ => panic!("{x:?} != None"),
+        }
     }
 }
